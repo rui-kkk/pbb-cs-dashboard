@@ -15,6 +15,7 @@ const CATEGORY_COLORS = {
   'Installation Issues':'#e65100',
   'Bug Report':         '#b71c1c',
   'Ban':                '#6a1b9a',
+  'Report':             '#1b5e20',
   'Others':             '#424242',
 };
 
@@ -109,7 +110,7 @@ ${recentText}
     }
   }
 
-  const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Others'];
+  const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Report', 'Others'];
   const totalCat = Object.values(report?.category || {}).reduce((a, b) => a + b, 0) || 1;
 
   return (
