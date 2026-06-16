@@ -9,6 +9,7 @@ const CATEGORY_COLORS = {
   'Bug Report':         { bg: '#fce4ec', color: '#b71c1c', border: '#b71c1c' },
   'Ban':                { bg: '#f3e5f5', color: '#6a1b9a', border: '#6a1b9a' },
   'Others':             { bg: '#f5f5f5', color: '#424242', border: '#424242' },
+  'Report':             { bg: '#e8f5e9', color: '#1b5e20', border: '#1b5e20' },
 };
 
 const LANG_NAMES = { ko: '🇰🇷 한국어', en: '🇺🇸 영어', zh: '🇨🇳 중국어', other: '기타' };
@@ -89,7 +90,7 @@ export default function MonitoringTab() {
   );
 
   const today = dashboard?.today || {};
-  const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Others'];
+  const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Report', 'Others'];
   const totalCat = Object.values(today.category || {}).reduce((a, b) => a + b, 0) || 1;
 
   return (
