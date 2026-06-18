@@ -99,9 +99,31 @@ export default function ReportTab() {
     }
   }
 
-  // PDF 저장 (브라우저 print)
-  function savePDF() {
-    window.print();
+// PDF 저장
+  async function savePDF() {
+    try {
+      const element = document.getElementById('report-content');
+      if (!element) return;
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      let y = 0;
+      while (y < imgHeight) {
+        pdf.addImage(imgData, 'PNG', 0, -y, imgWidth, imgHeight);
+        y += pageHeight;
+        if (y < imgHeight) pdf.addPage();
+      }
+      const days = getSelectedDays();
+      pdf.save(`PBB_CS_Report_${days[0]?.day || ''}-${days[days.length-1]?.day || ''}.pdf`);
+    } catch (e) {
+      alert('PDF 저장 실패: ' + e.message);
+    }
   }
 
   // Slack 발송
