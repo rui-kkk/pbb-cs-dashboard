@@ -1,226 +1,313 @@
-const SPREADSHEET_ID = '1JzBgLGmWo7rhW8PYQSjjk-rnQmPHWLwwWQmvYdo-ETM';
+'use client';
+import { useState, useEffect } from 'react';
 
-function doGet(e) {
-  const action = e.parameter.action || 'dashboard';
-  const day = e.parameter.day || null;
-  const category = e.parameter.category || null;
+const APPS_SCRIPT_URL = process.env.NEXT_PUBLIC_APPS_SCRIPT_URL;
 
-  let result;
+const CATEGORY_COLORS = {
+  'Gameplay Related':   { bg: '#e3f2fd', color: '#1565c0', border: '#1565c0' },
+  'Installation Issues':{ bg: '#fff3e0', color: '#e65100', border: '#e65100' },
+  'Bug Report':         { bg: '#fce4ec', color: '#b71c1c', border: '#b71c1c' },
+  'Ban':                { bg: '#f3e5f5', color: '#6a1b9a', border: '#6a1b9a' },
+  'Report':             { bg: '#e8f5e9', color: '#1b5e20', border: '#1b5e20' },
+  'Others':             { bg: '#f5f5f5', color: '#424242', border: '#424242' },
+};
 
-  try {
-    if (action === 'dashboard') result = getDashboardData();
-    else if (action === 'hourly') result = getHourlyData(day);
-    else if (action === 'report') result = getReportData(day);
-    else if (action === 'keywords') result = getKeywordsData(day);
-    else if (action === 'tickets') result = getTicketsByCategory(day, category);
-    else result = { error: 'Unknown action' };
-  } catch (err) {
-    result = { error: err.message };
+const LANG_NAMES = { ko: '🇰🇷 한국어', en: '🇺🇸 영어', zh: '🇨🇳 중국어', other: '기타' };
+const STATUS_COLORS = { '신규': '#c62828', '처리중': '#e65100', '완료': '#2e7d32' };
+
+export default function MonitoringTab() {
+  const [dashboard, setDashboard] = useState(null);
+  const [hourly, setHourly] = useState(null);
+  const [keywords, setKeywords] = useState(null);
+  const [aiSummary, setAiSummary] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // 모달 상태
+  const [modal, setModal] = useState({ open: false, category: '', tickets: [], loading: false });
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function fetchAll() {
+    try {
+      const [dashRes, hourlyRes, kwRes] = await Promise.all([
+        fetch(`${APPS_SCRIPT_URL}?action=dashboard`),
+        fetch(`${APPS_SCRIPT_URL}?action=hourly`),
+        fetch(`${APPS_SCRIPT_URL}?action=keywords`),
+      ]);
+      const [dashData, hourlyData, kwData] = await Promise.all([
+        dashRes.json(), hourlyRes.json(), kwRes.json(),
+      ]);
+      setDashboard(dashData);
+      setHourly(hourlyData);
+      setKeywords(kwData);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ── 오늘 날짜 → day_label 변환
-function getTodayLabel() {
-  const dayMap = {
-    '2026-06-26': 'D1',
-    '2026-06-27': 'D2',
-    '2026-06-28': 'D3',
-    '2026-06-29': 'D4',
-  };
-  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
-  if (dayMap[today]) return dayMap[today];
-  const keys = Object.keys(dayMap);
-  return keys.length > 0 ? dayMap[keys[0]] : null;
-}
-
-// ── tickets 시트 전체 데이터 로드
-function loadTickets() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName('tickets');
-  const data = sheet.getDataRange().getValues();
-
-  const realHeaders = data[0];
-  const rows = [];
-
-  for (let i = 2; i < data.length; i++) {
-    if (!data[i][0]) continue;
-    const row = {};
-    realHeaders.forEach((h, idx) => {
-      row[h] = data[i][idx];
-    });
-    rows.push(row);
+  // 카테고리 클릭 → 티켓 목록 로드
+  async function openCategoryModal(cat) {
+    const day = dashboard?.today?.label;
+    setModal({ open: true, category: cat, tickets: [], loading: true });
+    try {
+      const res = await fetch(`${APPS_SCRIPT_URL}?action=tickets&day=${day}&category=${encodeURIComponent(cat)}`);
+      const data = await res.json();
+      setModal({ open: true, category: cat, tickets: data.tickets || [], loading: false });
+    } catch (e) {
+      setModal({ open: true, category: cat, tickets: [], loading: false });
+    }
   }
-  return rows;
-}
 
-// ── 1. 대시보드 메인 데이터
-function getDashboardData() {
-  const tickets = loadTickets();
-  const todayLabel = getTodayLabel();
+  function closeModal() {
+    setModal({ open: false, category: '', tickets: [], loading: false });
+  }
 
-  const dayLabels = ['D1', 'D2', 'D3', 'D4'];
-  const todayIdx = dayLabels.indexOf(todayLabel);
-  const yesterdayLabel = todayIdx > 0 ? dayLabels[todayIdx - 1] : null;
+  async function runAiSummary() {
+    if (!dashboard) return;
+    setAiLoading(true);
+    setAiSummary('');
+    try {
+      const { today } = dashboard;
+      const catText = Object.entries(today.category)
+        .map(([k, v]) => `${k}: ${v}건`).join(', ');
+      const langText = Object.entries(today.language)
+        .map(([k, v]) => `${LANG_NAMES[k]}: ${v}건`).join(', ');
 
-  const todayTickets = tickets.filter(t => t.day_label === todayLabel);
-  const yesterdayTickets = yesterdayLabel
-    ? tickets.filter(t => t.day_label === yesterdayLabel)
-    : [];
+      const prompt = `PBB 게임 알파 테스트 CS 현황을 슬랙 공유용으로 3줄 이내로 요약해줘.
 
-  const totalAll = tickets.length;
+오늘(${today.label}) 총 접수: ${today.total}건
+전일 대비: ${today.vs_yesterday > 0 ? '+' : ''}${today.vs_yesterday}건
+미처리: ${today.pending}건
+문의 유형: ${catText}
+언어별: ${langText}
 
+형식: 이모지 포함, 핵심만, 한국어로`;
+
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      setAiSummary(data.result);
+    } catch (e) {
+      setAiSummary('요약 생성 실패');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+      데이터 불러오는 중...
+    </div>
+  );
+
+  const today = dashboard?.today || {};
   const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Report', 'Others'];
-  const categoryCount = {};
-  categories.forEach(c => categoryCount[c] = 0);
-  todayTickets.forEach(t => {
-    if (categoryCount[t.category] !== undefined) categoryCount[t.category]++;
-    else categoryCount['Others']++;
-  });
+  const totalCat = Object.values(today.category || {}).reduce((a, b) => a + b, 0) || 1;
 
-  const langCount = { ko: 0, en: 0, zh: 0, other: 0 };
-  todayTickets.forEach(t => {
-    const lang = t.language || 'other';
-    if (langCount[lang] !== undefined) langCount[lang]++;
-    else langCount['other']++;
-  });
+  return (
+    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
 
-  const pendingCount = todayTickets.filter(t => t.status === '신규' || t.status === '처리중').length;
+      {/* 티켓 목록 모달 */}
+      {modal.open && (
+        <div
+          onClick={closeModal}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '720px', maxWidth: '90vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
 
-  return {
-    today: {
-      label: todayLabel,
-      total: todayTickets.length,
-      pending: pendingCount,
-      vs_yesterday: todayTickets.length - yesterdayTickets.length,
-      category: categoryCount,
-      language: langCount,
-    },
-    yesterday: {
-      label: yesterdayLabel,
-      total: yesterdayTickets.length,
-    },
-    total_all: totalAll,
-  };
-}
+            {/* 모달 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{
+                  padding: '4px 12px', borderRadius: '6px',
+                  background: CATEGORY_COLORS[modal.category]?.bg,
+                  color: CATEGORY_COLORS[modal.category]?.color,
+                  border: `1px solid ${CATEGORY_COLORS[modal.category]?.border}`,
+                  fontSize: '14px', fontWeight: '600'
+                }}>{modal.category}</span>
+                <span style={{ fontSize: '14px', color: '#666' }}>티켓 목록 ({modal.tickets.length}건)</span>
+              </div>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666', lineHeight: 1 }}>✕</button>
+            </div>
 
-// ── 2. 시간대별 데이터
-function getHourlyData(day) {
-  const tickets = loadTickets();
-  const targetDay = day || getTodayLabel();
-  const filtered = tickets.filter(t => t.day_label === targetDay);
+            {/* 모달 내용 */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {modal.loading ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>불러오는 중...</div>
+              ) : modal.tickets.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>티켓이 없습니다</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      {['티켓 ID', '제목', '언어', '상태', '접수 시각'].map(h => (
+                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', color: '#555', fontWeight: '600', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modal.tickets.map((t, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f8f9fa'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                          
+                            href={t.zendesk_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'none' }}
+                            onMouseEnter={e => e.target.style.textDecoration = 'underline'}
+                            onMouseLeave={e => e.target.style.textDecoration = 'none'}>
+                            #{t.ticket_id}
+                          </a>
+                        </td>
+                        <td style={{ padding: '10px 12px', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.subject}>{t.subject}</td>
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>{LANG_NAMES[t.language] || t.language}</td>
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '4px', background: STATUS_COLORS[t.status] ? STATUS_COLORS[t.status] + '20' : '#f0f0f0', color: STATUS_COLORS[t.status] || '#666', fontSize: '12px', fontWeight: '600' }}>
+                            {t.status || '-'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#888', whiteSpace: 'nowrap' }}>
+                          {t.created_at ? new Date(t.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-  const hourly = Array(24).fill(0);
-  filtered.forEach(t => {
-    const date = new Date(t.created_at);
-    const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-    const hour = kst.getHours();
-    hourly[hour]++;
-  });
+      {/* KPI 카드 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        {[
+          { label: '오늘 총 접수', value: today.total || 0, unit: '건', color: '#1a1a2e' },
+          { label: '전일 대비', value: `${today.vs_yesterday > 0 ? '+' : ''}${today.vs_yesterday || 0}`, unit: '건', color: today.vs_yesterday > 0 ? '#c62828' : '#2e7d32' },
+          { label: '미처리', value: today.pending || 0, unit: '건', color: '#e65100' },
+        ].map((kpi, i) => (
+          <div key={i} style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderTop: `4px solid ${kpi.color}` }}>
+            <div style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>{kpi.label}</div>
+            <div style={{ fontSize: '32px', fontWeight: '700', color: kpi.color }}>{kpi.value}<span style={{ fontSize: '16px', marginLeft: '4px' }}>{kpi.unit}</span></div>
+          </div>
+        ))}
+      </div>
 
-  return { day: targetDay, hourly };
-}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
 
-// ── 3. 일간 리포트 데이터
-function getReportData(day) {
-  const tickets = loadTickets();
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const summarySheet = ss.getSheetByName('summary');
-  const summaryData = summarySheet.getDataRange().getValues();
+        {/* 문의 유형별 */}
+        <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '600' }}>📊 문의 유형별 현황</h3>
+          {categories.map(cat => {
+            const count = today.category?.[cat] || 0;
+            const pct = Math.round((count / totalCat) * 100);
+            const c = CATEGORY_COLORS[cat];
+            return (
+              <div
+                key={cat}
+                onClick={() => count > 0 && openCategoryModal(cat)}
+                style={{ marginBottom: '12px', cursor: count > 0 ? 'pointer' : 'default', borderRadius: '8px', padding: '6px', transition: 'background 0.2s' }}
+                onMouseEnter={e => { if (count > 0) e.currentTarget.style.background = '#f8f9fa'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '13px', padding: '2px 8px', borderRadius: '4px', background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>{cat}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600' }}>
+                    {count}건 ({pct}%)
+                    {count > 0 && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#999' }}>▶</span>}
+                  </span>
+                </div>
+                <div style={{ background: '#f0f0f0', borderRadius: '4px', height: '8px' }}>
+                  <div style={{ width: `${pct}%`, background: c.color, borderRadius: '4px', height: '8px', transition: 'width 0.5s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-  const filtered = tickets.filter(t => t.day_label === day);
+        {/* 언어별 현황 */}
+        <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '600' }}>🌍 언어별 현황</h3>
+          {Object.entries(today.language || {}).map(([lang, count]) => {
+            const total = Object.values(today.language || {}).reduce((a, b) => a + b, 0) || 1;
+            const pct = Math.round((count / total) * 100);
+            return (
+              <div key={lang} style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '14px' }}>{LANG_NAMES[lang] || lang}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{count}건 ({pct}%)</span>
+                </div>
+                <div style={{ background: '#f0f0f0', borderRadius: '4px', height: '8px' }}>
+                  <div style={{ width: `${pct}%`, background: '#1a1a2e', borderRadius: '4px', height: '8px', transition: 'width 0.5s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-  const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Report', 'Others'];
-  const categoryCount = {};
-  categories.forEach(c => categoryCount[c] = 0);
-  filtered.forEach(t => {
-    if (categoryCount[t.category] !== undefined) categoryCount[t.category]++;
-    else categoryCount['Others']++;
-  });
+      {/* 시간대별 차트 */}
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '600' }}>⏰ 시간대별 접수량</h3>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '120px' }}>
+          {(hourly?.hourly || Array(24).fill(0)).map((count, hour) => {
+            const max = Math.max(...(hourly?.hourly || [1])) || 1;
+            const height = Math.max((count / max) * 100, count > 0 ? 8 : 2);
+            const isActive = hour >= 9 && hour <= 18;
+            return (
+              <div key={hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '10px', color: '#999' }}>{count > 0 ? count : ''}</div>
+                <div style={{ width: '100%', height: `${height}%`, background: isActive ? '#1a1a2e' : '#ccc', borderRadius: '3px 3px 0 0', transition: 'height 0.5s' }} title={`${hour}시: ${count}건`} />
+                <div style={{ fontSize: '9px', color: '#aaa' }}>{hour % 3 === 0 ? `${hour}시` : ''}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-  const langCount = { ko: 0, en: 0, zh: 0, other: 0 };
-  filtered.forEach(t => {
-    const lang = t.language || 'other';
-    if (langCount[lang] !== undefined) langCount[lang]++;
-    else langCount['other']++;
-  });
+      {/* 키워드 */}
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '600' }}>🔑 오늘 주요 키워드</h3>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {(keywords?.keywords || []).length === 0
+            ? <span style={{ color: '#aaa', fontSize: '14px' }}>키워드 없음</span>
+            : keywords.keywords.map(({ keyword, count }, i) => (
+              <span key={i} style={{ padding: '6px 14px', borderRadius: '20px', background: '#e8eaf6', color: '#3949ab', fontSize: '13px', fontWeight: '500' }}>
+                {keyword} <strong>{count}</strong>
+              </span>
+            ))
+          }
+        </div>
+      </div>
 
-  const dayLabels = ['D1', 'D2', 'D3', 'D4'];
-  const trend = dayLabels.map(d => ({
-    day: d,
-    total: tickets.filter(t => t.day_label === d).length,
-  }));
-
-  const recentTickets = filtered
-    .slice(-10)
-    .map(t => ({
-      ticket_id: t.ticket_id,
-      subject: t.subject,
-      category: t.category,
-      language: t.language,
-      summary: t.summary,
-      keywords: t.keywords,
-      status: t.status,
-      created_at: t.created_at,
-    }));
-
-  return {
-    day,
-    total: filtered.length,
-    category: categoryCount,
-    language: langCount,
-    trend,
-    recent_tickets: recentTickets,
-  };
-}
-
-// ── 4. 키워드 데이터
-function getKeywordsData(day) {
-  const tickets = loadTickets();
-  const targetDay = day || getTodayLabel();
-  const filtered = tickets.filter(t => t.day_label === targetDay);
-
-  const keywordCount = {};
-  filtered.forEach(t => {
-    if (!t.keywords) return;
-    const kws = t.keywords.split(',').map(k => k.trim()).filter(Boolean);
-    kws.forEach(kw => {
-      keywordCount[kw] = (keywordCount[kw] || 0) + 1;
-    });
-  });
-
-  const sorted = Object.entries(keywordCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([keyword, count]) => ({ keyword, count }));
-
-  return { day: targetDay, keywords: sorted };
-}
-
-// ── 5. 카테고리별 티켓 목록 ✅ 신규
-function getTicketsByCategory(day, category) {
-  const tickets = loadTickets();
-  const targetDay = day || getTodayLabel();
-
-  let filtered = tickets.filter(t => t.day_label === targetDay);
-  if (category) {
-    filtered = filtered.filter(t => t.category === category);
-  }
-
-  const result = filtered.map(t => ({
-    ticket_id: t.ticket_id,
-    subject: t.subject,
-    category: t.category,
-    language: t.language,
-    summary: t.summary,
-    keywords: t.keywords,
-    status: t.status,
-    created_at: t.created_at,
-    zendesk_url: `https://pubgsupport.zendesk.com/agent/tickets/${t.ticket_id}`,
-  }));
-
-  return { day: targetDay, category: category || 'all', tickets: result };
+      {/* AI 현황 요약 */}
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '600' }}>🤖 AI 현황 요약</h3>
+          <button
+            onClick={runAiSummary}
+            disabled={aiLoading}
+            style={{ padding: '8px 18px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: '8px', cursor: aiLoading ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: aiLoading ? 0.7 : 1 }}>
+            {aiLoading ? '생성 중...' : '슬랙용 요약 생성'}
+          </button>
+        </div>
+        {aiSummary
+          ? <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '16px', fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>{aiSummary}</div>
+          : <div style={{ color: '#aaa', fontSize: '14px' }}>버튼을 눌러 AI 요약을 생성하세요</div>
+        }
+      </div>
+    </div>
+  );
 }
