@@ -107,6 +107,53 @@ export default function MonitoringTab() {
   const categories = ['Gameplay Related', 'Installation Issues', 'Bug Report', 'Ban', 'Report', 'Others'];
   const totalCat = Object.values(today.category || {}).reduce((a, b) => a + b, 0) || 1;
 
+  // 시간대별 라인 차트 SVG
+  function HourlyChart() {
+    const data = hourly?.hourly || Array(24).fill(0);
+    const max = Math.max(...data, 1);
+    const W = 900, H = 180, padL = 36, padR = 16, padT = 24, padB = 36;
+    const w = W - padL - padR, h = H - padT - padB;
+    const x = i => padL + (i / 23) * w;
+    const y = v => padT + h - (v / max) * h;
+    const points = data.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+    const areaPoints = `${x(0)},${padT + h} ${points} ${x(23)},${padT + h}`;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1565c0" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#1565c0" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+        {/* 그리드 라인 */}
+        {[0, 0.25, 0.5, 0.75, 1].map(r => (
+          <g key={r}>
+            <line x1={padL} y1={padT + h * (1 - r)} x2={W - padR} y2={padT + h * (1 - r)} stroke="#f0f0f0" strokeWidth="1" />
+            <text x={padL - 6} y={padT + h * (1 - r) + 4} textAnchor="end" fontSize="11" fill="#ccc">{Math.round(max * r)}</text>
+          </g>
+        ))}
+        {/* 면적 */}
+        <polygon points={areaPoints} fill="url(#areaGrad)" />
+        {/* 라인 */}
+        <polyline points={points} fill="none" stroke="#1565c0" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {/* 포인트 + 레이블 */}
+        {data.map((v, i) => (
+          <g key={i}>
+            {v > 0 && (
+              <>
+                <circle cx={x(i)} cy={y(v)} r="4.5" fill="#1565c0" stroke="#fff" strokeWidth="2" />
+                <text x={x(i)} y={y(v) - 10} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1565c0">{v}</text>
+              </>
+            )}
+            {i % 3 === 0 && (
+              <text x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" fill="#999">{i}h</text>
+            )}
+          </g>
+        ))}
+      </svg>
+    );
+  }
+
   return (
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
 
@@ -149,9 +196,8 @@ export default function MonitoringTab() {
                     {modal.tickets.map((t, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                          
-                            <a href={t.zendesk_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'underline' }}>
-  {'#'}{t.ticket_id}
+                          <a href={t.zendesk_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'underline' }}>
+                            {'#'}{t.ticket_id}
                           </a>
                         </td>
                         <td style={{ padding: '10px 12px', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.subject}>{t.subject}</td>
@@ -240,83 +286,10 @@ export default function MonitoringTab() {
       </div>
 
       {/* 시간대별 차트 */}
-      {/* 시간대별 차트 */}
       <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' }}>
         <h3 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: '600' }}>⏰ 시간대별 접수량</h3>
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>오늘 시간대별 접수량 추이</div>
-        {(() => {
-          const data = hourly?.hourly || Array(24).fill(0);
-          const max = Math.max(...data, 1);
-          const W = 900, H = 160, padL = 32, padR = 16, padT = 20, padB = 32;
-          const w = W - padL - padR, h = H - padT - padB;
-          const x = i => padL + (i / 23) * w;
-          const y = v => padT + h - (v / max) * h;
-          const points = data.map((v, i) => `${x(i)},${y(v)}`).join(' ');
-          const areaPoints = `${x(0)},${padT + h} ${points} ${x(23)},${padT + h}`;
-          return (
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
-              <defs>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1565c0" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#1565c0" stopOpacity="0.01" />
-                </linearGradient>
-              </defs>
-              {/* Y축 그리드 */}
-              {[0, 0.25, 0.5, 0.75, 1].map(r => (
-                <g key={r}>
-                  <line x1={padL} y1={padT + h * (1 - r)} x2={W - padR} y2={padT + h * (1 - r)} stroke="#f0f0f0" strokeWidth="1" />
-                  <text x={padL - 4} y={padT + h * (1 - r) + 4} textAnchor="end" fontSize="10" fill="#bbb">{Math.round(max * r)}</text>
-                </g>
-              ))}
-              {/* 면적 */}
-              <polygon points={areaPoints} fill="url(#areaGrad)" />
-              {/* 라인 */}
-              <polyline points={points} fill="none" stroke="#1565c0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-              {/* 데이터 포인트 + 레이블 */}
-              {data.map((v, i) => (
-                <g key={i}>
-                  {v > 0 && (
-                    <>
-                      <circle cx={x(i)} cy={y(v)} r="4" fill="#1565c0" stroke="#fff" strokeWidth="2" />
-                      <text x={x(i)} y={y(v) - 8} textAnchor="middle" fontSize="11" fontWeight="600" fill="#1565c0">{v}</text>
-                    </>
-                  )}
-                  {i % 3 === 0 && (
-                    <text x={x(i)} y={H - 4} textAnchor="middle" fontSize="10" fill="#999">{i}h</text>
-                  )}
-                </g>
-              ))}
-            </svg>
-          );
-        })()}
-      </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '180px', padding: '0 4px' }}>
-          {(hourly?.hourly || Array(24).fill(0)).map((count, hour) => {
-            const max = Math.max(...(hourly?.hourly || [1])) || 1;
-            const height = Math.max((count / max) * 100, count > 0 ? 10 : 2);
-            const isActive = hour >= 9 && hour <= 18;
-            return (
-              <div key={hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: count > 0 ? '#1a1a2e' : 'transparent' }}>{count > 0 ? count : '0'}</div>
-                <div
-                  style={{ width: '100%', height: `${height}%`, background: isActive ? '#1a1a2e' : '#b0bec5', borderRadius: '4px 4px 0 0', transition: 'height 0.5s', minHeight: '4px' }}
-                  title={`${hour}시: ${count}건`}
-                />
-                <div style={{ fontSize: '11px', color: isActive ? '#1a1a2e' : '#999', fontWeight: isActive ? '600' : '400' }}>
-                  {hour % 3 === 0 ? `${hour}시` : ''}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', justifyContent: 'flex-end' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#1a1a2e' }} /> 업무 시간 (9~18시)
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#b0bec5' }} /> 그 외 시간
-          </div>
-        </div>
+        <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>오늘 시간대별 접수량 추이</div>
+        <HourlyChart />
       </div>
 
       {/* 키워드 */}
