@@ -240,21 +240,34 @@ export default function MonitoringTab() {
       </div>
 
       {/* 시간대별 차트 */}
-      <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '600' }}>⏰ 시간대별 접수량</h3>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '120px' }}>
+      <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 20px', fontSize: '15px', fontWeight: '600' }}>⏰ 시간대별 접수량</h3>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '180px', padding: '0 4px' }}>
           {(hourly?.hourly || Array(24).fill(0)).map((count, hour) => {
             const max = Math.max(...(hourly?.hourly || [1])) || 1;
-            const height = Math.max((count / max) * 100, count > 0 ? 8 : 2);
+            const height = Math.max((count / max) * 100, count > 0 ? 10 : 2);
             const isActive = hour >= 9 && hour <= 18;
             return (
-              <div key={hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                <div style={{ fontSize: '10px', color: '#999' }}>{count > 0 ? count : ''}</div>
-                <div style={{ width: '100%', height: `${height}%`, background: isActive ? '#1a1a2e' : '#ccc', borderRadius: '3px 3px 0 0', transition: 'height 0.5s' }} title={`${hour}시: ${count}건`} />
-                <div style={{ fontSize: '9px', color: '#aaa' }}>{hour % 3 === 0 ? `${hour}시` : ''}</div>
+              <div key={hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: '600', color: count > 0 ? '#1a1a2e' : 'transparent' }}>{count > 0 ? count : '0'}</div>
+                <div
+                  style={{ width: '100%', height: `${height}%`, background: isActive ? '#1a1a2e' : '#b0bec5', borderRadius: '4px 4px 0 0', transition: 'height 0.5s', minHeight: '4px' }}
+                  title={`${hour}시: ${count}건`}
+                />
+                <div style={{ fontSize: '11px', color: isActive ? '#1a1a2e' : '#999', fontWeight: isActive ? '600' : '400' }}>
+                  {hour % 3 === 0 ? `${hour}시` : ''}
+                </div>
               </div>
             );
           })}
+        </div>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#1a1a2e' }} /> 업무 시간 (9~18시)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#666' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#b0bec5' }} /> 그 외 시간
+          </div>
         </div>
       </div>
 
