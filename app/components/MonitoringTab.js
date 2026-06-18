@@ -22,8 +22,6 @@ export default function MonitoringTab() {
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // 모달 상태
   const [modal, setModal] = useState({ open: false, category: '', tickets: [], loading: false });
 
   useEffect(() => {
@@ -52,7 +50,6 @@ export default function MonitoringTab() {
     }
   }
 
-  // 카테고리 클릭 → 티켓 목록 로드
   async function openCategoryModal(cat) {
     const day = dashboard?.today?.label;
     setModal({ open: true, category: cat, tickets: [], loading: true });
@@ -75,11 +72,8 @@ export default function MonitoringTab() {
     setAiSummary('');
     try {
       const { today } = dashboard;
-      const catText = Object.entries(today.category)
-        .map(([k, v]) => `${k}: ${v}건`).join(', ');
-      const langText = Object.entries(today.language)
-        .map(([k, v]) => `${LANG_NAMES[k]}: ${v}건`).join(', ');
-
+      const catText = Object.entries(today.category).map(([k, v]) => `${k}: ${v}건`).join(', ');
+      const langText = Object.entries(today.language).map(([k, v]) => `${LANG_NAMES[k]}: ${v}건`).join(', ');
       const prompt = `PBB 게임 알파 테스트 CS 현황을 슬랙 공유용으로 3줄 이내로 요약해줘.
 
 오늘(${today.label}) 총 접수: ${today.total}건
@@ -89,7 +83,6 @@ export default function MonitoringTab() {
 언어별: ${langText}
 
 형식: 이모지 포함, 핵심만, 한국어로`;
-
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +110,7 @@ export default function MonitoringTab() {
   return (
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
 
-      {/* 티켓 목록 모달 */}
+      {/* 티켓 모달 */}
       {modal.open && (
         <div
           onClick={closeModal}
@@ -125,8 +118,6 @@ export default function MonitoringTab() {
           <div
             onClick={e => e.stopPropagation()}
             style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '720px', maxWidth: '90vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-
-            {/* 모달 헤더 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{
@@ -134,14 +125,12 @@ export default function MonitoringTab() {
                   background: CATEGORY_COLORS[modal.category]?.bg,
                   color: CATEGORY_COLORS[modal.category]?.color,
                   border: `1px solid ${CATEGORY_COLORS[modal.category]?.border}`,
-                  fontSize: '14px', fontWeight: '600'
+                  fontSize: '14px', fontWeight: '600',
                 }}>{modal.category}</span>
                 <span style={{ fontSize: '14px', color: '#666' }}>티켓 목록 ({modal.tickets.length}건)</span>
               </div>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666', lineHeight: 1 }}>✕</button>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}>✕</button>
             </div>
-
-            {/* 모달 내용 */}
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {modal.loading ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>불러오는 중...</div>
@@ -158,26 +147,25 @@ export default function MonitoringTab() {
                   </thead>
                   <tbody>
                     {modal.tickets.map((t, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f8f9fa'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                           
                             href={t.zendesk_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'none' }}
-                            onMouseEnter={e => { e.target.style.textDecoration = 'underline'; }}
-                            onMouseLeave={e => { e.target.style.textDecoration = 'none'; }}>
+                            style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'underline' }}>
                             #{t.ticket_id}
                           </a>
                         </td>
                         <td style={{ padding: '10px 12px', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.subject}>{t.subject}</td>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>{LANG_NAMES[t.language] || t.language}</td>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                          <span style={{ padding: '2px 8px', borderRadius: '4px', background: STATUS_COLORS[t.status] ? STATUS_COLORS[t.status] + '20' : '#f0f0f0', color: STATUS_COLORS[t.status] || '#666', fontSize: '12px', fontWeight: '600' }}>
-                            {t.status || '-'}
-                          </span>
+                          <span style={{
+                            padding: '2px 8px', borderRadius: '4px',
+                            background: STATUS_COLORS[t.status] ? STATUS_COLORS[t.status] + '20' : '#f0f0f0',
+                            color: STATUS_COLORS[t.status] || '#666',
+                            fontSize: '12px', fontWeight: '600',
+                          }}>{t.status || '-'}</span>
                         </td>
                         <td style={{ padding: '10px 12px', color: '#888', whiteSpace: 'nowrap' }}>
                           {t.created_at ? new Date(t.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
@@ -216,17 +204,13 @@ export default function MonitoringTab() {
             const pct = Math.round((count / totalCat) * 100);
             const c = CATEGORY_COLORS[cat];
             return (
-              <div
-                key={cat}
-                onClick={() => count > 0 && openCategoryModal(cat)}
-                style={{ marginBottom: '12px', cursor: count > 0 ? 'pointer' : 'default', borderRadius: '8px', padding: '6px', transition: 'background 0.2s' }}
-                onMouseEnter={e => { if (count > 0) e.currentTarget.style.background = '#f8f9fa'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              <div key={cat} style={{ marginBottom: '12px', borderRadius: '8px', padding: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span style={{ fontSize: '13px', padding: '2px 8px', borderRadius: '4px', background: c.bg, color: c.color, border: `1px solid ${c.border}` }}>{cat}</span>
-                  <span style={{ fontSize: '13px', fontWeight: '600' }}>
+                  <span
+                    onClick={() => { if (count > 0) openCategoryModal(cat); }}
+                    style={{ fontSize: '13px', fontWeight: '600', cursor: count > 0 ? 'pointer' : 'default', color: count > 0 ? '#1565c0' : 'inherit', textDecoration: count > 0 ? 'underline' : 'none' }}>
                     {count}건 ({pct}%)
-                    {count > 0 && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#999' }}>▶</span>}
                   </span>
                 </div>
                 <div style={{ background: '#f0f0f0', borderRadius: '4px', height: '8px' }}>
