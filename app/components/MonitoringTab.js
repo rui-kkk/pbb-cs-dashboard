@@ -150,11 +150,8 @@ export default function MonitoringTab() {
                       <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                           
-                            href={t.zendesk_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'underline' }}>
-                            #{t.ticket_id}
+                            <a href={t.zendesk_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'underline' }}>
+  {'#'}{t.ticket_id}
                           </a>
                         </td>
                         <td style={{ padding: '10px 12px', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.subject}>{t.subject}</td>
