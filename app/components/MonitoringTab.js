@@ -167,8 +167,8 @@ export default function MonitoringTab() {
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ color: '#1565c0', fontWeight: '600', textDecoration: 'none' }}
-                            onMouseEnter={e => e.target.style.textDecoration = 'underline'}
-                            onMouseLeave={e => e.target.style.textDecoration = 'none'}>
+                            onMouseEnter={e => { e.target.style.textDecoration = 'underline'; }}
+                            onMouseLeave={e => { e.target.style.textDecoration = 'none'; }}>
                             #{t.ticket_id}
                           </a>
                         </td>
