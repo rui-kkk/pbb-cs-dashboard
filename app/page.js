@@ -3,12 +3,53 @@ import { useState } from 'react';
 import MonitoringTab from './components/MonitoringTab';
 import ReportTab from './components/ReportTab';
 
+const DASHBOARD_PASSWORD = process.env.NEXT_PUBLIC_DASHBOARD_PASSWORD || 'pbb2026';
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState('monitoring');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [inputPw, setInputPw] = useState('');
+  const [error, setError] = useState('');
+
+  function handleLogin() {
+    if (inputPw === DASHBOARD_PASSWORD) {
+      setAuthenticated(true);
+      setError('');
+    } else {
+      setError('비밀번호가 올바르지 않습니다.');
+      setInputPw('');
+    }
+  }
+
+  if (!authenticated) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', padding: '40px', width: '360px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎮</div>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a2e', marginBottom: '4px' }}>PBB CS Dashboard</div>
+          <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '28px' }}>Alpha Test · 2026.06.26 ~ 06.29</div>
+          <input
+            type="password"
+            placeholder="비밀번호를 입력하세요"
+            value={inputPw}
+            onChange={e => setInputPw(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            style={{ width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #e0e0e0', fontSize: '14px', marginBottom: '8px', boxSizing: 'border-box', outline: 'none' }}
+          />
+          {error && <div style={{ color: '#c62828', fontSize: '13px', marginBottom: '8px' }}>{error}</div>}
+          <button
+            onClick={handleLogin}
+            style={{ width: '100%', padding: '12px', background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+            로그인
+          </button>
+          <div style={{ fontSize: '11px', color: '#ccc', marginTop: '16px' }}>KRAFTON Player Support</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-
       {/* 헤더 */}
       <div style={{ background: '#1a1a2e', color: '#fff', padding: '0 24px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
@@ -19,11 +60,15 @@ export default function Home() {
               <div style={{ fontSize: '11px', opacity: 0.6 }}>Alpha Test · 2026.06.26 ~ 06.29</div>
             </div>
           </div>
-          <div style={{ fontSize: '12px', opacity: 0.6 }}>
-            KRAFTON Player Support
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ fontSize: '12px', opacity: 0.6 }}>KRAFTON Player Support</div>
+            <button
+              onClick={() => setAuthenticated(false)}
+              style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+              로그아웃
+            </button>
           </div>
         </div>
-
         {/* 탭 */}
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '4px' }}>
           {[
@@ -49,7 +94,6 @@ export default function Home() {
           ))}
         </div>
       </div>
-
       {/* 컨텐츠 */}
       <div>
         {activeTab === 'monitoring' && <MonitoringTab />}
